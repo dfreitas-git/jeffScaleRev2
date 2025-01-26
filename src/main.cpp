@@ -1,5 +1,6 @@
 /*******************************************************************************************************
-This is the code to implement Jeff's 20Kg load-cell based scale.
+This is the code to implement Jeff's 20Kg load-cell based scale.  Conditionally, we also use the 
+code to buile the KITTY_SCALE and the FIVE_KG_SCALE.
   
 Uses an HX711 to interface to a full Whetstone Bridge load-cell.  Weight 
 displayed on a 128x64 SH1106 OLED display.
@@ -31,7 +32,7 @@ Scale readings can be stored in eight memory locations (M0-M7).
 We are using the SSD1306Ascii library as it's a lighter weight driver for the OLED.  The full frame-buffer
 version of the library uses up too much memory in the Nano, not leaving any for additional variables...
 
-Uses wire library to implement I2C interface.
+Jeff's and the KITTY_SCALE use the wire library to implement I2C interface.  The FIVE_KG_SCALE uses an SPI display.
 
 Using a rotary encoder with click-switch to implement a simple menu system to allow
 things like storing/recalling measurments, re-zeroing the scale, re-calibrating, etc.
@@ -47,22 +48,36 @@ https://github.com/olkal/HX711_ADC
 #include <SPI.h>
 #include <Wire.h>
 #include "SSD1306Ascii.h"
-#include "SSD1306AsciiAvrI2c.h"
 #include <HX711_ADC.h>
 #include <ClickEncoder.h>
 #include <TimerOne.h>
 #include <EEPROM.h>
 
-#define I2C_ADDRESS 0x3c  // OLED address
+//#define KITTY_SCALE   // Settings for the kitty scale version.  Comment both out for building Jeff's version
+#define FIVE_KG_SCALE   // Uncomment one or the other to build that version.  Don't uncomment both!
+
+#ifdef FIVE_KG_SCALE
+#include "SSD1306AsciiSpi.h"
+SSD1306AsciiSpi oled; // Create an instance of the SPI OLED object
+#else
+#include "SSD1306AsciiAvrI2c.h"
 SSD1306AsciiAvrI2c oled;  // Create an instance of the OLED object
+#define I2C_ADDRESS 0x3c  // OLED address
+#endif
 
 // Size variables
 const int NUM_MEMORY_ENTRIES = 8;  // Set up eight memory locations to store measurments
 
 // Rotary encode pins
+#ifdef KITTY_SCALE   // Wired my pins flipped, oops...
+const int ENC_A = 7;
+const int ENC_B = 6;
+const int ENC_SW = 8;
+#else
 const int ENC_A = 6;
 const int ENC_B = 7;
 const int ENC_SW = 8;
+#endif
 
 // Battery low variables
 const int BAT_PIN = A7;
@@ -72,10 +87,10 @@ boolean display_low_battery = false;
 int battery_voltage;
 
 // HX711 ADC/Amplifier pins and setup
-const int HX711_dout = 4;  //Arduino d4 pin for the data
-const int HX711_sck = 5;  //Arduino d5 pin for the clock
 unsigned long adc_read_time = 0;
 const int readInterval = 100;  // Increase value (in ms) to slow down number of readings
+const int HX711_dout = 4;  //Arduino d4 pin for the data
+const int HX711_sck = 5;   //Arduino d5 pin for the clock
 HX711_ADC loadCell(HX711_dout, HX711_sck);
 
 // EEPROM addresses for the calibration value and weight storage
@@ -218,8 +233,8 @@ struct menuItem L0_menu[] = {
 // ************************************************************************************
 void setup()   {
    // Uncomment when using the serial monitor
-   //Serial.begin(57600);
-   //delay(1000);  // Wait a second to avoid double reset
+   Serial.begin(115200);
+   delay(1000);  // Wait a second to avoid double reset
 
    // Initialize the EEPROM address array for weight storage.  Addresses are 
    // four bytes apart as we are storing floats
@@ -236,7 +251,12 @@ void setup()   {
    pinMode(BAT_PIN, INPUT);
 
    // Initalize the OLED display
+   #ifdef FIVE_KG_SCALE
+   oled.begin(&SH1106_128x64, 2, 9, 3);  // CS_PIN, DC_PIN, RST_PIN
+   #else
    oled.begin(&SH1106_128x64, I2C_ADDRESS);
+   #endif
+
    oled.setFont(System5x7);
 
    // Display a "splash screen" during boot-up
@@ -244,11 +264,25 @@ void setup()   {
    oled.clear();
    oled.println();
    oled.set2X();
-   oled.println(F("Property of"));
+   #ifdef KITTY_SCALE
+   oled.println(F("   Range"));
+   oled.set1X();
+   oled.println();
+   oled.set2X();
+   oled.println(F(" 0-44 lbs"));
+   #elif defined FIVE_KG_SCALE
+   oled.println(F("   Range"));
+   oled.set1X();
+   oled.println();
+   oled.set2X();
+   oled.println(F(" 0-11 lbs"));
+   #else
+   oled.println(F("Property Of"));
    oled.set1X();
    oled.println();
    oled.set2X();
    oled.println(F(" J. Penney"));
+   #endif
    delay(1000);
   
    // Initialize the HX711/ADC
