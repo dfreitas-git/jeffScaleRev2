@@ -1,6 +1,6 @@
 /*******************************************************************************************************
 This is the code to implement Jeff's 20Kg load-cell based scale.  Conditionally, we also use the 
-code to buile the KITTY_SCALE and the FIVE_KG_SCALE.
+code to build the KITTY_SCALE and the FIVE_KG_SCALE.
   
 Uses an HX711 to interface to a full Whetstone Bridge load-cell.  Weight 
 displayed on a 128x64 SH1106 OLED display.
